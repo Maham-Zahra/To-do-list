@@ -3,21 +3,126 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>Todo App with Firebase</title>
   <link rel="stylesheet" href="index.css">
 </head>
-<body >
+<body>
   <div class="div1">
-<h3 class="heading"> To-Do list</h3>
-  <div class="div2">
-<input  class="input" type="text" placeholder="Add your task">
-  <button onclick="addTask()" class="btn"> ADD </button>
+    <h3 class="heading">To-Do List</h3>
+    <div class="div2">
+      <input class="input" type="text" placeholder="Add your task">
+      <button onclick="addTask()" class="btn">ADD</button>
+    </div>
+    <ul class="list"><!-- tasks go here --></ul>
   </div>
-  <ul class="list">
-<!-- Task will be entered here -->
- 
-  </ul>
-  </div>
-  <script src="index.js"></script>
+
+  <button  class="btn2" onclick="signIn()">Sign In with Google</button>
+  <button class="btn2" onclick="signOutUser()">Sign Out</button>
+  <p id="user"></p>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut }
+      from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
+      from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+    // 🔹 Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBqfauK7VI5NhSJE44WUBCBqviCDANgY9U",
+      authDomain: "to-do-list-d6eab.firebaseapp.com",
+      projectId: "to-do-list-d6eab",
+      storageBucket: "to-do-list-d6eab.appspot.com",
+      messagingSenderId: "393973399383",
+      appId: "1:393973399383:web:b66959cb043d5f69600812"
+    };
+
+    // 🔹 Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+    const db = getFirestore(app);
+
+    // 🔹 DOM elements
+    const input = document.querySelector(".input");
+    const list = document.querySelector(".list");
+    const userDisplay = document.getElementById("user");
+
+    // Sign In
+    window.signIn = async function () {
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        userDisplay.innerText = `Hello, ${user.displayName}`;
+        loadTasks();
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    // Sign Out
+    window.signOutUser = async function () {
+      await signOut(auth);
+      userDisplay.innerText = "Signed out";
+      list.innerHTML = "";
+    };
+
+    // Add Task
+   window.addTask = async function () {
+  const taskText = input.value.trim();
+  if (!taskText) {
+    console.log("⚠️ Empty task, skipping");
+    return;
+  }
+
+  const user = auth.currentUser;
+  if (!user) {
+    alert("Please sign in first!");
+    return;
+  }
+
+  try {
+    const docRef = await addDoc(collection(db, "tasks"), {
+      uid: user.uid,
+      text: taskText,
+      createdAt: new Date()
+    });
+    console.log("✅ Task added with ID:", docRef.id);
+    input.value = "";
+    loadTasks();
+  } catch (error) {
+    console.error("❌ Error adding task:", error);
+  }
+};
+
+
+    // Load Tasks
+    async function loadTasks() {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const querySnapshot = await getDocs(collection(db, "tasks"));
+      list.innerHTML = "";
+
+      querySnapshot.forEach((docSnap) => {
+        const task = docSnap.data();
+        if (task.uid === user.uid) {
+          let li = document.createElement("li");
+          li.textContent = task.text;
+
+          // Delete button
+          let span = document.createElement("span");
+          span.innerHTML = "\u00d7";
+          span.onclick = async () => {
+            await deleteDoc(doc(db, "tasks", docSnap.id));
+            loadTasks();
+          };
+          li.appendChild(span);
+
+          list.appendChild(li);
+        }
+      });
+    }
+  </script>
 </body>
 </html>

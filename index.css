@@ -80,3 +80,17 @@ ul li span:hover{
   background: #edeef0;
 
 }
+.btn2{
+   height: 32px;
+  background-color: rgb(14, 14, 67);
+  color: white;
+  width: 100px;
+ border-radius: 2px;
+  border-style: none;
+  display: block;
+  margin-bottom: 10px;
+}
+.btn2:hover{
+  background-color: rgb(81, 81, 105) ;
+  transition: 0.1s;
+}
