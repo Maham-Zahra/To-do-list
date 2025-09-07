@@ -1,44 +1,63 @@
-
-const input = document.querySelector(".input");
-const list = document.querySelector(".list");
-
-
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
 import { 
-  getAuth, GoogleAuthProvider, signInWithPopup, signOut 
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-auth.js";
-
 import { 
-  getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc 
+  getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy 
 } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
 
-const auth = getAuth();
+// 🔹 Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyBqfauK7VI5NhSJE44WUBCBqviCDANgY9U",
+  authDomain: "to-do-list-d6eab.firebaseapp.com",
+  projectId: "to-do-list-d6eab",
+  storageBucket: "to-do-list-d6eab.appspot.com",
+  messagingSenderId: "393973399383",
+  appId: "1:393973399383:web:b66959cb043d5f69600812"
+};
+
+// 🔹 Init Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
-const db = getFirestore();
+const db = getFirestore(app);
 
+// 🔹 DOM elements
+const input = document.querySelector(".input");
+const list = document.querySelector(".list");
+const userDisplay = document.getElementById("user");
+const btnAdd = document.querySelector(".btn");
+const btnSignIn = document.querySelector(".sign-in");
+const btnSignOut = document.querySelector(".sign-out");
 
-window.signIn = async function () {
+// 🔹 Event Listeners
+btnAdd.addEventListener("click", addTask);
+btnSignIn.addEventListener("click", signIn);
+btnSignOut.addEventListener("click", signOutUser);
+
+// 🔹 Sign In
+async function signIn() {
   try {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
-    console.log("Signed in:", user.displayName, user.email);
-    document.getElementById("user").innerText = `Hello, ${user.displayName}`;
+    userDisplay.innerText = `Hello, ${user.displayName}`;
     loadTasks();
   } catch (error) {
-    console.error(error);
+    console.error("Sign-in error:", error);
   }
-};
+}
 
-
-window.signOutUser = async function () {
+// 🔹 Sign Out
+async function signOutUser() {
   await signOut(auth);
-  document.getElementById("user").innerText = "Signed out";
-  document.querySelector(".list").innerHTML = "";
-};
+  userDisplay.innerText = "Signed out";
+  list.innerHTML = "";
+}
 
-
+// 🔹 Add Task
 async function addTask() {
   const taskText = input.value.trim();
-  if (taskText === "") return;
+  if (!taskText) return;
 
   const user = auth.currentUser;
   if (!user) {
@@ -50,29 +69,27 @@ async function addTask() {
     await addDoc(collection(db, "tasks"), {
       uid: user.uid,
       text: taskText,
-      completed: false,   
+      completed: false,
       createdAt: new Date()
     });
     input.value = "";
-    loadTasks(); 
+    loadTasks();
   } catch (error) {
     console.error("Error adding task:", error);
   }
 }
 
-
+// 🔹 Load Tasks
 async function loadTasks() {
-  try {
-    const user = auth.currentUser;
-    if (!user) {
-      console.log("[loadTasks] No signed-in user");
-      return;
-    }
+  const user = auth.currentUser;
+  if (!user) return;
 
-    const querySnapshot = await getDocs(collection(db, "tasks"));
+  try {
+    const q = query(collection(db, "tasks"), orderBy("createdAt", "asc"));
+    const snapshot = await getDocs(q);
     list.innerHTML = "";
 
-    querySnapshot.forEach((docSnap) => {
+    snapshot.forEach(docSnap => {
       const task = docSnap.data();
       if (task.uid !== user.uid) return;
 
@@ -80,43 +97,51 @@ async function loadTasks() {
       li.textContent = task.text;
       if (task.completed) li.classList.add("checked");
 
-
+      // Toggle completed
       let isCompleted = task.completed;
       li.addEventListener("click", async () => {
         const taskRef = doc(db, "tasks", docSnap.id);
         const newVal = !isCompleted;
-
         li.classList.toggle("checked", newVal);
 
         try {
           await updateDoc(taskRef, { completed: newVal });
-          console.log(`[toggle] ${docSnap.id} -> ${newVal}`);
-          isCompleted = newVal; // update local state
+          isCompleted = newVal;
         } catch (err) {
-          // rollback if failed
           li.classList.toggle("checked", isCompleted);
-          console.error("[toggle] update failed", err);
+          console.error("Toggle failed", err);
         }
       });
 
       // Delete button
       const span = document.createElement("span");
       span.innerHTML = "\u00d7";
-      span.addEventListener("click", async (e) => {
+      span.addEventListener("click", async e => {
         e.stopPropagation();
         try {
           await deleteDoc(doc(db, "tasks", docSnap.id));
-          console.log(`[delete] ${docSnap.id}`);
           loadTasks();
         } catch (err) {
-          console.error("[delete] failed", err);
+          console.error("Delete failed", err);
         }
       });
 
       li.appendChild(span);
       list.appendChild(li);
     });
+
   } catch (err) {
-    console.error("[loadTasks] error:", err);
+    console.error("loadTasks error:", err);
   }
 }
+
+// 🔹 Auto-load tasks if user already signed in
+onAuthStateChanged(auth, user => {
+  if (user) {
+    userDisplay.innerText = `Hello, ${user.displayName}`;
+    loadTasks();
+  } else {
+    userDisplay.innerText = "Signed out";
+    list.innerHTML = "";
+  }
+});
